@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - DevOps Cloud Project</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 Task Manager</h1>
+            <p class="subtitle">DevOps Cloud Deployment Pipeline Project</p>
+            <p class="tech-stack">Node.js + Express + MongoDB + Docker + AKS</p>
+        </header>
+
+        <div class="task-input-section">
+            <h2>➕ Add New Task</h2>
+            <form id="taskForm">
+                <input type="text" id="taskTitle" placeholder="Task title..." required>
+                <textarea id="taskDescription" placeholder="Task description (optional)..." rows="3"></textarea>
+                <button type="submit" class="btn-add">Add Task</button>
+            </form>
+        </div>
+
+        <div class="tasks-section">
+            <h2>📝 Your Tasks</h2>
+            <div id="tasksList" class="tasks-list">
+                <p class="loading">Loading tasks...</p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>🐳 Dockerized & Deployed on Azure Kubernetes Service (AKS)</p>
+        <p>GitHub Actions CI/CD • Docker Hub • Azure Cloud</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

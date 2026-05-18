@@ -1,0 +1,177 @@
+name: Task Manager CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+  IMAGE_BACKEND: ${{ secrets.DOCKER_HUB_USERNAME }}/taskmanager-backend
+  IMAGE_FRONTEND: ${{ secrets.DOCKER_HUB_USERNAME }}/taskmanager-frontend
+
+jobs:
+
+  build:
+    name: Build (Frontend + Backend)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package.json
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          npm install
+
+      - name: Verify frontend files
+        run: |
+          echo "Checking frontend files..."
+          ls -la frontend/
+          test -f frontend/index.html && echo "index.html exists"
+          test -f frontend/app.js    && echo "app.js exists"
+          test -f frontend/style.css && echo "style.css exists"
+
+  test:
+    name: Automated Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm install
+
+      - name: Run API tests
+        env:
+          MONGO_URI: mongodb://localhost:27017/taskmanager_test
+          PORT: 3000
+          NODE_ENV: test
+        run: |
+          cd backend
+          node -e "
+          const mongoose = require('mongoose');
+          mongoose.connect(process.env.MONGO_URI)
+            .then(() => { console.log('✅ DB connection test passed'); mongoose.disconnect(); })
+            .catch(e => { console.error('❌ DB test failed:', e); process.exit(1); });
+          "
+
+      - name: Start backend and run health check
+        env:
+          MONGO_URI: mongodb://localhost:27017/taskmanager_test
+          PORT: 3000
+        run: |
+          cd backend
+          node server.js &
+          sleep 5
+          curl -f http://localhost:3000/health && echo "✅ Health check passed"
+          curl -f -X POST http://localhost:3000/api/tasks \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Test Task","description":"CI Test"}' \
+            && echo "✅ POST /api/tasks passed"
+          curl -f http://localhost:3000/api/tasks && echo "✅ GET /api/tasks passed"
+
+  docker-build-push:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_BACKEND }}:latest
+            ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:latest
+            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to Kubernetes (AKS)
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Update image tags in manifests
+        run: |
+          sed -i "s|IMAGE_BACKEND_PLACEHOLDER|${{ env.IMAGE_BACKEND }}:${{ github.sha }}|g" k8s/deployment.yaml
+          sed -i "s|IMAGE_FRONTEND_PLACEHOLDER|${{ env.IMAGE_FRONTEND }}:${{ github.sha }}|g" k8s/deployment.yaml
+
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl rollout status deployment/taskmanager-backend --timeout=120s
+          kubectl rollout status deployment/taskmanager-frontend --timeout=120s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods
+          kubectl get services
+          echo "✅ Deployment complete"
