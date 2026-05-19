@@ -20,7 +20,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-APP_URL = os.environ.get("APP_URL", "http://68.210.113.111/")
+APP_URL = os.environ.get("APP_URL", "http://localhost:80")
 
 
 def get_driver():

@@ -138,6 +138,13 @@ jobs:
           sleep 5
           curl -f http://localhost:3000/health && echo "✅ Backend started"
 
+      - name: Start frontend service
+        run: |
+          cd frontend
+          python -m http.server 80 > /tmp/frontend.log 2>&1 &
+          sleep 2
+          curl -f http://localhost:80 && echo "✅ Frontend started"
+
       - name: Run Selenium E2E tests
         env:
           APP_URL: http://localhost:80
@@ -146,11 +153,12 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: selenium-test-results
           path: |
             /tmp/backend.log
+            /tmp/frontend.log
 
   docker-build-push:
     name: Docker Build & Push
