@@ -138,6 +138,11 @@ jobs:
           sleep 5
           curl -f http://localhost:3000/health && echo "✅ Backend started"
 
+      - name: Configure frontend API URL
+        run: |
+          sed -i "s|__API_URL__|http://localhost:3000|g" frontend/app.js
+          echo "✅ Frontend configured to use API at http://localhost:3000"
+
       - name: Start frontend service
         run: |
           cd frontend
