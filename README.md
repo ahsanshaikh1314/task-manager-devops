@@ -1,4 +1,9 @@
-# Task Manager — DevOps CSC418 Terminal Exam
+# Task Manager — CI/CD Pipeline and Automation
+
+Made by:
+FA23-BCS-091
+FA23-BCS-099
+FA23-BCS-107
 
 ## Architecture (3-Tier)
 - **Frontend**: Nginx serving HTML/CSS/JS (Dockerfile.frontend)
