@@ -109,5 +109,4 @@ task-manager/
     └── pipeline.yml        # GitHub Actions CI/CD
 ```
 
-## Submission
-Zip the entire folder as `fa23-bcs-099.zip`
+
