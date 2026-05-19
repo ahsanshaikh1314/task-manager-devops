@@ -28,17 +28,14 @@ jobs:
           cache-dependency-path: backend/package.json
 
       - name: Install backend dependencies
-        run: |
-          cd backend
-          npm install
+        run: cd backend && npm install
 
       - name: Verify frontend files
         run: |
-          echo "Checking frontend files..."
           ls -la frontend/
-          test -f frontend/index.html && echo "index.html exists"
-          test -f frontend/app.js    && echo "app.js exists"
-          test -f frontend/style.css && echo "style.css exists"
+          test -f frontend/index.html && echo "✅ index.html exists"
+          test -f frontend/app.js    && echo "✅ app.js exists"
+          test -f frontend/style.css && echo "✅ style.css exists"
 
   test:
     name: Automated Tests
@@ -61,15 +58,11 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: |
-          cd backend
-          npm install
+        run: cd backend && npm install
 
-      - name: Run API tests
+      - name: Test MongoDB connection
         env:
           MONGO_URI: mongodb://localhost:27017/taskmanager_test
-          PORT: 3000
-          NODE_ENV: test
         run: |
           cd backend
           node -e "
@@ -79,20 +72,19 @@ jobs:
             .catch(e => { console.error('❌ DB test failed:', e); process.exit(1); });
           "
 
-      - name: Start backend and run health check
+      - name: Start backend and test API endpoints
         env:
           MONGO_URI: mongodb://localhost:27017/taskmanager_test
           PORT: 3000
         run: |
-          cd backend
-          node server.js &
+          cd backend && node server.js &
           sleep 5
-          curl -f http://localhost:3000/health && echo "✅ Health check passed"
-          curl -f -X POST http://localhost:3000/api/tasks \
+          curl -sf http://localhost:3000/health && echo "✅ Health check passed"
+          curl -sf -X POST http://localhost:3000/api/tasks \
             -H "Content-Type: application/json" \
-            -d '{"title":"Test Task","description":"CI Test"}' \
+            -d '{"title":"CI Test Task","description":"automated"}' \
             && echo "✅ POST /api/tasks passed"
-          curl -f http://localhost:3000/api/tasks && echo "✅ GET /api/tasks passed"
+          curl -sf http://localhost:3000/api/tasks && echo "✅ GET /api/tasks passed"
 
   selenium-tests:
     name: Selenium E2E Tests
@@ -115,52 +107,46 @@ jobs:
           node-version: '18'
 
       - name: Install backend dependencies
-        run: |
-          cd backend
-          npm install
+        run: cd backend && npm install
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Install Selenium and dependencies
-        run: |
-          pip install selenium webdriver-manager
+      - name: Install Selenium
+        run: pip install selenium
 
-      - name: Start backend service
+      - name: Start backend
         env:
           MONGO_URI: mongodb://localhost:27017/taskmanager_test
           PORT: 3000
         run: |
-          cd backend
-          node server.js > /tmp/backend.log 2>&1 &
+          cd backend && node server.js > /tmp/backend.log 2>&1 &
           sleep 5
-          curl -f http://localhost:3000/health && echo "✅ Backend started"
+          curl -sf http://localhost:3000/health && echo "✅ Backend started"
 
-      - name: Configure frontend API URL
+      - name: Set backend URL for CI
         run: |
-          sed -i "s|__API_URL__|http://localhost:3000|g" frontend/app.js
-          echo "✅ Frontend configured to use API at http://localhost:3000"
+          sed -i "s|window.BACKEND_URL = '';|window.BACKEND_URL = 'http://localhost:3000';|" frontend/index.html
+          echo "✅ BACKEND_URL set to http://localhost:3000"
 
-      - name: Start frontend service
+      - name: Start frontend (Python HTTP server)
         run: |
-          cd frontend
-          python -m http.server 8081 > /tmp/frontend.log 2>&1 &
+          cd frontend && python -m http.server 8081 > /tmp/frontend.log 2>&1 &
           sleep 2
-          curl -f http://localhost:8081 && echo "✅ Frontend started"
+          curl -sf http://localhost:8081 && echo "✅ Frontend started"
 
       - name: Run Selenium E2E tests
         env:
           APP_URL: http://localhost:8081
-        run: |
-          python selenium/test_taskmanager.py
+        run: python selenium/test_taskmanager.py
 
-      - name: Upload test results
-        if: always()
+      - name: Upload logs on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: selenium-test-results
+          name: selenium-logs
           path: |
             /tmp/backend.log
             /tmp/frontend.log
@@ -183,6 +169,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Reset BACKEND_URL to production default before build
+        run: |
+          sed -i "s|window.BACKEND_URL = 'http://localhost:3000';|window.BACKEND_URL = '';|" frontend/index.html
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5

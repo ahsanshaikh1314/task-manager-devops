@@ -1,4 +1,4 @@
-const API_URL = '/api/tasks';
+const API_BASE = (window.BACKEND_URL || '') + '/api/tasks';
 
 document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadTasks() {
     try {
-        const response = await fetch(API_URL);
+        const response = await fetch(API_BASE);
         const result = await response.json();
         const tasksList = document.getElementById('tasksList');
         if (result.success && result.data.length > 0) {
@@ -29,72 +29,55 @@ async function loadTasks() {
 }
 
 async function addTask() {
-    event.preventDefault();
-    const taskTitle = document.getElementById('taskTitle').value;
-    const taskDescription = document.getElementById('taskDescription').value;
-
-    if (!taskTitle) {
-        alert('Please enter a task title.');
-        return;
-    }
-
+    const title       = document.getElementById('taskTitle').value;
+    const description = document.getElementById('taskDescription').value;
+    if (!title.trim()) { alert('⚠️ Please enter a task title'); return; }
     try {
-        const response = await fetch(`${API_URL}/api/tasks`, {
+        const response = await fetch(API_BASE, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ title: taskTitle, description: taskDescription })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description })
         });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Error adding task. Please try again.' }));
-            throw new Error(errorData.message);
+        const result = await response.json();
+        if (result.success) {
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskDescription').value = '';
+            await loadTasks();
+        } else {
+            alert('❌ Error adding task: ' + result.error);
         }
-
-        document.getElementById('taskTitle').value = '';
-        document.getElementById('taskDescription').value = '';
-        fetchTasks();
     } catch (error) {
         console.error('Error adding task:', error);
-        alert(`❌ ${error.message}`);
+        alert('❌ Error adding task. Please try again.');
     }
 }
 
-async function updateTaskStatus(id, completed) {
+async function toggleTask(id, completed) {
     try {
-        const response = await fetch(`${API_URL}/api/tasks/${id}`, {
+        const response = await fetch(`${API_BASE}/${id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ completed: completed })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed: !completed })
         });
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Error updating task. Please try again.' }));
-            throw new Error(errorData.message);
-        }
-        fetchTasks();
+        const result = await response.json();
+        if (result.success) await loadTasks();
+        else alert('❌ Error updating task: ' + result.error);
     } catch (error) {
         console.error('Error updating task:', error);
-        alert(`❌ ${error.message}`);
+        alert('❌ Error updating task. Please try again.');
     }
 }
 
 async function deleteTask(id) {
     if (!confirm('⚠️ Are you sure you want to delete this task?')) return;
     try {
-        const response = await fetch(`${API_URL}/api/tasks/${id}`, {
-            method: 'DELETE'
-        });
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Error deleting task. Please try again.' }));
-            throw new Error(errorData.message);
-        }
-        fetchTasks();
+        const response = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (result.success) await loadTasks();
+        else alert('❌ Error deleting task: ' + result.error);
     } catch (error) {
         console.error('Error deleting task:', error);
-        alert(`❌ ${error.message}`);
+        alert('❌ Error deleting task. Please try again.');
     }
 }
 
