@@ -141,13 +141,13 @@ jobs:
       - name: Start frontend service
         run: |
           cd frontend
-          python -m http.server 80 > /tmp/frontend.log 2>&1 &
+          python -m http.server 8081 > /tmp/frontend.log 2>&1 &
           sleep 2
-          curl -f http://localhost:80 && echo "✅ Frontend started"
+          curl -f http://localhost:8081 && echo "✅ Frontend started"
 
       - name: Run Selenium E2E tests
         env:
-          APP_URL: http://localhost:80
+          APP_URL: http://localhost:8081
         run: |
           python selenium/test_taskmanager.py
 
